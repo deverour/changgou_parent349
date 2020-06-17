@@ -266,6 +266,7 @@ public class SpuServiceImpl implements SpuService {
         spu.setId(spuId);
         spu.setIsMarketable("0");
         spuMapper.updateByPrimaryKeySelective(spu);
+        rabbitTemplate.convertAndSend("goods_down_exchange","",spuId);
     }
 
     @Override

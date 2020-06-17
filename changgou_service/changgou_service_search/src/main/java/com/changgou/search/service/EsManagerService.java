@@ -11,4 +11,6 @@ public interface EsManagerService {
     public void importDataToEs(String spuId);
 
     public void importAllToES();
+
+    public void reduceFromES(String spuId);
 }

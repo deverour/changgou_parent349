@@ -70,7 +70,27 @@ public class EsManagerServiceImpl implements EsManagerService {
         esDao.saveAll(skuInfoList);
     }
 
+    @Override
+    public void reduceFromES(String spuId) {
+        List<Sku> skuList = skuFeign.findListBySpuId(spuId);
+        /*if (null ==skuList){
+            throw new RuntimeException("此商品对应的库存数据为空，无需从索引库移除："+spuId);
+        }*/
+        String skuJsonstr = JSON.toJSONString(skuList);
+        List<SkuInfo> skuInfoList = JSON.parseArray(skuJsonstr, SkuInfo.class);
+        for (SkuInfo skuInfo : skuInfoList) {
+            Map specMap = JSON.parseObject(skuInfo.getSpec(), Map.class);
+            skuInfo.setSpecMap(specMap);
+            System.out.println("====================");
+            System.out.println(skuInfo);
+            esDao.delete(skuInfo);
+        }
+        System.out.println("=========================================================================================================================");
+        System.out.println(skuInfoList);
 
+        esDao.deleteAll(skuInfoList);
+
+    }
 
 
 }

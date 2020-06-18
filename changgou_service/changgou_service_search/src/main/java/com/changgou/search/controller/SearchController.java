@@ -19,17 +19,12 @@ public class SearchController {
     @Autowired
     private SearchService searchService;
 
+
+
     //对搜索入参带有特殊符号进行处理
     public void handlerSearchMap(Map<String,String> searchMap){
 
-        if(null != searchMap){
-            Set<Map.Entry<String, String>> entries = searchMap.entrySet();
-            for (Map.Entry<String, String> entry : entries) {
-                if(entry.getKey().startsWith("spec_")){
-                    searchMap.put(entry.getKey(),entry.getValue().replace("+","%2B"));
-                }
-            }
-        }
+
 
     }
 

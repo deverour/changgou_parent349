@@ -9,6 +9,8 @@ import org.elasticsearch.index.query.*;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -53,6 +55,14 @@ public class SearchServiceImpl implements SearchService{
             searchMap.put("pageNum","1");
             pageNum = "1";
         }
+        //获取排序域名
+        String sortField = searchMap.get("sortField");
+        String sortRule = searchMap.get("sortRule");
+        //获取品牌过滤条件
+        String brand = searchMap.get("brand");
+        //获取价格过滤条件
+        String price = searchMap.get("price");
+
 
         /**
          * 封装查询对象
@@ -73,22 +83,44 @@ public class SearchServiceImpl implements SearchService{
             //必须，and的意思
             //QueryBuilders.matchQuery是将查询的关键字根据指定的分词器切分词后，将切分出来的词一个一个查询
             boolQueryBuilder.must(QueryBuilders.matchQuery("name",keywords).operator(Operator.AND));
-            //将组合查询对象放入顶级查询对象中
-            nativeSearchQueryBuilder.withQuery(boolQueryBuilder);
+
         }
 
 
         /**
          * 根据品牌过滤查询
          */
+        if(!StringUtils.isEmpty(brand)){
+            boolQueryBuilder.filter(QueryBuilders.termQuery("brandName",brand));
+            //nativeSearchQueryBuilder.withFilter(boolQueryBuilder);
+        }
 
         /**
          * 根据规格过滤查询
          */
 
+        if (searchMap != null && searchMap.size()>0) {
+            //遍历所有查询参数，获取所有查询参数的key
+            for (String searchKey : searchMap.keySet()){
+                if (searchKey.startsWith("spec_")){
+                    //将转义符%2B转换成加号，特殊字符处理
+                    searchMap.put(searchKey,searchMap.get(searchKey).replace("%2B","+"));
+                    //注意：因为在SkuInfo索引库中规格是text类型，默认会切分词，这里需要将规格当做一个整体来做过滤
+                    //所有最后拼接的.keyword是强制类型转化，将text类型转成keyword类型，这样就不会切分词，作为一个整体使用。
+                    boolQueryBuilder.filter(QueryBuilders.termQuery("specMap."+searchKey.substring(5)+".keyword",searchMap.get(searchKey)));
+                }
+            }
+        }
+
         /**
          * 根据价格过滤查询
          */
+        if (!StringUtils.isEmpty(price)){
+            String[] priceArray = price.split("-");
+            if (priceArray.length == 2){
+                boolQueryBuilder.filter(QueryBuilders.rangeQuery("price").gte(priceArray[0]).lte(priceArray[1]));
+            }
+        }
 
         /**
          *分页查询
@@ -101,14 +133,26 @@ public class SearchServiceImpl implements SearchService{
          * 高亮查询
          */
         HighlightBuilder.Field highLightField = new HighlightBuilder.Field("name").preTags("<em style\"color:red\">").postTags("</em>");
-        nativeSearchQueryBuilder.withHighlightFields(highLightField);
+        //nativeSearchQueryBuilder.withHighlightFields(highLightField);
         /**
          * 排序查询
          */
+        if (!StringUtils.isEmpty(sortRule) && !StringUtils.isEmpty(sortField)){
+            //升序
+            if ("ASC".equals(sortRule)){
+                nativeSearchQueryBuilder.withSort(SortBuilders.fieldSort(sortField).order(SortOrder.ASC));
+            }
+            //降序
+            if("DESC".equals(sortRule)){
+                nativeSearchQueryBuilder.withSort(SortBuilders.fieldSort(sortField).order(SortOrder.DESC));
+            }
+        }
 
         /**
          * 根据品牌聚合查询
          */
+
+
 
         /**
          * 根据规格聚合查询
@@ -117,6 +161,9 @@ public class SearchServiceImpl implements SearchService{
         /**
          * 查询并返回结果集(包含高亮)
          */
+
+        //将组合查询对象放入顶级查询对象中
+        nativeSearchQueryBuilder.withQuery(boolQueryBuilder);
         //AggregatedPage<SkuInfo> skuInfos = elasticsearchTemplate.queryForPage(nativeSearchQueryBuilder.build(), SkuInfo.class);
         AggregatedPage<SkuInfo> skuInfos = elasticsearchTemplate.queryForPage(nativeSearchQueryBuilder.build(), SkuInfo.class, new SearchResultMapper() {
             //在这里重新组合查询结果，将高亮名称获取放入到结果集中

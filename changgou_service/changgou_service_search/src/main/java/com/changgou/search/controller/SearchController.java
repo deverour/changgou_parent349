@@ -19,19 +19,30 @@ public class SearchController {
     @Autowired
     private SearchService searchService;
 
-
-
-    //对搜索入参带有特殊符号进行处理
-    public void handlerSearchMap(Map<String,String> searchMap){
-
-
-
+    /**
+     * 处理接收的参数中的特殊符号
+     * %2B代表加号，这里在接受参数的时候，对于加号有可能会自动转换成空格，造成查询不到规格对应的数据
+     * @param searchMap
+     * @return
+     */
+    public void paramHandler(Map<String,String> searchMap){
+        if (searchMap !=null && searchMap.size() > 0){
+            for (String key : searchMap.keySet()) {
+                if (key.startsWith("spec_")){
+                    searchMap.put(key,searchMap.get(key).replace("+","%2B"));
+                    searchMap.put(key,searchMap.get(key).replace(" ","%2B"));
+                }
+            }
+        }
     }
+
+
+
 
     @GetMapping
     public Map search(@RequestParam Map<String,String> searchMap){
         //特殊符号处理
-        handlerSearchMap(searchMap);
+        paramHandler(searchMap);
         Map resultMap = searchService.search(searchMap);
         return resultMap;
     }

@@ -8,6 +8,10 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -23,10 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import javax.swing.text.Highlighter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class SearchServiceImpl implements SearchService{
@@ -42,7 +44,7 @@ public class SearchServiceImpl implements SearchService{
         if (searchMap == null || searchMap.size()==0){
             return null;
         }
-        Map<String,Object> resultmap = new HashMap<>();
+        Map<String,Object> resultMap = new HashMap<>();
         /**
          * 获取查询条件
          */
@@ -151,12 +153,19 @@ public class SearchServiceImpl implements SearchService{
         /**
          * 根据品牌聚合查询
          */
+        //给品牌聚合起个名称，这个名称随意起名，主要用来获取结果的时候，通过这个名字获取结果
+        String brandAgg = "brandAgg";
+        TermsAggregationBuilder brandAggBuilder = AggregationBuilders.terms(brandAgg).field("brandName");
+        nativeSearchQueryBuilder.addAggregation(brandAggBuilder);
 
 
 
         /**
          * 根据规格聚合查询
          */
+        String specAgg = "specAgg";
+        TermsAggregationBuilder specAggBuilder = AggregationBuilders.terms(specAgg).field("spec.keyword");
+        nativeSearchQueryBuilder.addAggregation(specAggBuilder);
 
         /**
          * 查询并返回结果集(包含高亮)
@@ -164,7 +173,7 @@ public class SearchServiceImpl implements SearchService{
 
         //将组合查询对象放入顶级查询对象中
         nativeSearchQueryBuilder.withQuery(boolQueryBuilder);
-        //AggregatedPage<SkuInfo> skuInfos = elasticsearchTemplate.queryForPage(nativeSearchQueryBuilder.build(), SkuInfo.class);
+
         AggregatedPage<SkuInfo> skuInfos = elasticsearchTemplate.queryForPage(nativeSearchQueryBuilder.build(), SkuInfo.class, new SearchResultMapper() {
             //在这里重新组合查询结果，将高亮名称获取放入到结果集中
             @Override
@@ -206,28 +215,79 @@ public class SearchServiceImpl implements SearchService{
         /**
          * 获取根据品牌聚合的结果集
          */
+        StringTerms brandStrTerms = (StringTerms)skuInfos.getAggregation("brandAgg");
+        //获取品牌聚合结果
+        List<String> brandList = brandStrTerms.getBuckets().stream().map(bucket -> bucket.getKeyAsString()).collect(Collectors.toList());
+        resultMap.put("brandList",brandList);
 
         /**
          * 获取根据规格聚合的结果集
          */
-
+        StringTerms specStrTerms = (StringTerms)skuInfos.getAggregation("specAgg");
+        List<String> specList = specStrTerms.getBuckets().stream().map(bucket -> bucket.getKeyAsString()).collect(Collectors.toList());
+        resultMap.put("specList",specFilter(specList));
         /**
          * 封装查询结果后返回
          */
          //当前页
-         resultmap.put("pageNum",pageNum);
+         resultMap.put("pageNum",pageNum);
          //查询返回的结果集
-         resultmap.put("rows",skuInfos.getContent());
+         resultMap.put("rows",skuInfos.getContent());
          //总页数
-         resultmap.put("totalPage",skuInfos.getTotalPages());
+         resultMap.put("totalPage",skuInfos.getTotalPages());
          //查询到的总条数
-         resultmap.put("total",skuInfos.getTotalElements());
+         resultMap.put("total",skuInfos.getTotalElements());
 
 
 
 
 
-        return resultmap;
+        return resultMap;
+    }
+
+    /**
+     * 处理规格聚合后的结果
+     * 原始查询结果:
+     *      "specList": [
+     *         "{'颜色': '蓝色', '版本': '6GB+128GB'}",
+     *         "{'颜色': '黑色', '版本': '6GB+128GB'}",
+     *         "{'颜色': '黑色', '版本': '4GB+64GB'}",
+     *         "{'颜色': '蓝色', '版本': '4GB+64GB'}",
+     *         "{'颜色': '蓝色', '版本': '6GB+64GB'}",
+     *         "{'颜色': '黑色', '版本': '6GB+64GB'}",
+     *         "{'颜色': '黑色'}",
+     *         "{'颜色': '蓝色'}",
+     *         "{'颜色': '金色', '版本': '4GB+64GB'}",
+     *         "{'颜色': '粉色', '版本': '6GB+128GB'}"
+     *     ]
+     *
+     * 需要的结果:
+     *    {
+     *      颜色: [蓝色, 黑色, 金色, 粉色],
+     *      版本: [6GB+128GB, 4GB+64GB, 6GB+64GB]
+     *    }
+     * @return
+     */
+    public Map<String, Set<String>> specFilter(List<String> specList) {
+        Map<String, Set<String>> resultMap = new HashMap<>();
+        if (specList != null && specList.size() > 0) {
+            for (String specJsonStr : specList) {
+                //将获取到的json字符串转成Map, 例如: "{'颜色': '金色', '版本': '4GB+64GB'}"
+                Map<String, String> specMap = JSON.parseObject(specJsonStr, Map.class);
+                for (String specKey : specMap.keySet()) {
+                    //从需要返回的map中获取set集合
+                    Set<String> specSet = resultMap.get(specKey);
+                    if (specSet == null) {
+                        specSet = new HashSet<String>();
+                    }
+                    //将规格的值放入Set中
+                    specSet.add(specMap.get(specKey));
+                    //将set放入Map中
+                    resultMap.put(specKey, specSet);
+                }
+            }
+        }
+        return resultMap;
     }
 
 

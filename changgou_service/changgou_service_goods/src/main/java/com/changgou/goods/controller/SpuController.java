@@ -151,7 +151,7 @@ public class SpuController {
 
     }
 
-    @PutMapping("/put/{spuId}")
+    @GetMapping("/put/{spuId}")
     public Result put(@PathVariable("spuId") String spuId){
         spuService.put(spuId);
         return new Result(true,StatusCode.OK,"上架成功");

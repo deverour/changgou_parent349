@@ -1,6 +1,7 @@
 package com.changgou.page.service;
 
 
+import com.alibaba.fastjson.JSON;
 import com.changgou.entity.Result;
 import com.changgou.goods.feign.CategoryFeign;
 import com.changgou.goods.feign.SkuFeign;
@@ -15,6 +16,7 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,8 +49,14 @@ public class PageServiceImpl implements PageService {
         resultMap.put("spu",spu);
         //2.根据商品id获取图片集合对象
         if (spu !=null){
-            String[] imageList = spu.getImages().split(",");
-            resultMap.put("imageList",imageList);
+            List<Map> imagesList = JSON.parseArray(spu.getImages(), Map.class);
+            List<String> imageUrlList = new ArrayList<>();
+            if (imagesList != null && imagesList.size() > 0){
+                for (Map imageMap : imagesList){
+                    imageUrlList.add(String.valueOf(imageMap.get("url")));
+                }
+            }
+            resultMap.put("imageList",imageUrlList);
         }
 
         //3.根据商品id获取分类对象
@@ -85,7 +93,7 @@ public class PageServiceImpl implements PageService {
         }
 
         //4.定义输出流，指定输出的位置以及文件名
-        File file = new File(dir+spuId+".html");
+        File file = new File(dir+"/"+spuId+".html");
         Writer out = null;
         try {
             out= new PrintWriter(file);

@@ -67,10 +67,11 @@ public class SearchController {
         model.addAttribute("result",resultMap);
         model.addAttribute("searchMap",searchMap);
 
-        Page<SkuInfo> page = new Page<SkuInfo>(
+        Page<SkuInfo> page = new Page<>(
                 Long.parseLong(String.valueOf(resultMap.get("total"))) ,
                 Integer.parseInt(String.valueOf(resultMap.get("pageNum"))) ,
                 Page.pageSize);
+        model.addAttribute("page",page);
 
         StringBuilder url = new StringBuilder("/search/list");
         if (searchMap != null && searchMap.size()>0){

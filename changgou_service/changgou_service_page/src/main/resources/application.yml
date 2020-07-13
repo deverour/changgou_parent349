@@ -7,6 +7,8 @@ spring:
     host: 192.168.200.128
   main:
     allow-bean-definition-overriding: true #当遇到同样名字的时候，是否允许覆盖注册
+  thymeleaf:
+    cache: false
 eureka:
   client:
     service-url:
@@ -32,4 +34,4 @@ hystrix:
         isolation:
           strategy: SEMAPHORE
 # 生成静态页的位置
-pagepath: D:\Develop\Workspace\IntelliJ_Space\study\changgou_parent349\changgou_service\changgou_service_page\src\main\resources\templates\items\
+pagepath: D://Develop/Workspace/IntelliJ_Space/study/changgou_parent349/changgou_service/changgou_service_page/src/main/resources/templates/items
